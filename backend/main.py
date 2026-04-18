@@ -1,9 +1,12 @@
-"""FastAPI wrapper for Folio pipeline (Phase 2.1 ready)."""
+"""FastAPI wrapper for Folio pipeline."""
 
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from supabase import create_client
 
 from services.apple_music import AppleMusicClient
 from pipeline.fetch import fetch_candidates
@@ -13,6 +16,14 @@ from pipeline.translate import translate_to_music_params
 
 app = FastAPI(title="Folio API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+
+def _supabase():
+    url = os.getenv("SUPABASE_URL", "")
+    key = os.getenv("SUPABASE_SERVICE_KEY", "")
+    if not url or not key:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    return create_client(url, key)
 
 
 @app.get("/health")
@@ -45,3 +56,66 @@ async def suggest_music(
         return {"scene": scene.model_dump(), "suggestions": [t.model_dump() for t in ranked]}
     except Exception as exc:  # pragma: no cover - keeps API return shape stable
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/api/trips/{trip_id}")
+def get_trip(trip_id: str) -> dict[str, object]:
+    sb = _supabase()
+    trip = sb.table("trips").select("*").eq("id", trip_id).maybe_single().execute()
+    if not trip.data:
+        raise HTTPException(status_code=404, detail="Trip not found")
+
+    moments = (
+        sb.table("moments")
+        .select("*")
+        .eq("trip_id", trip_id)
+        .order("taken_at")
+        .execute()
+    )
+
+    return {"trip": trip.data, "moments": moments.data or []}
+
+
+@app.post("/api/trips")
+def create_trip(
+    title: str = Form(default="Untitled Trip"),
+    user_id: str = Form(...),
+) -> dict[str, object]:
+    sb = _supabase()
+    result = sb.table("trips").insert({"title": title, "user_id": user_id}).execute()
+    return {"trip": result.data[0] if result.data else {}}
+
+
+@app.post("/api/trips/{trip_id}/moments")
+def add_moment(
+    trip_id: str,
+    user_id: str = Form(...),
+    photo_url: str = Form(...),
+    chosen_track_id: str = Form(default=""),
+    chosen_track_name: str = Form(default=""),
+    chosen_track_artist: str = Form(default=""),
+    chosen_track_reason: str = Form(default=""),
+    chosen_track_apple_url: str = Form(default=""),
+    chosen_track_preview_url: str = Form(default=""),
+    latitude: float = Form(default=0.0),
+    longitude: float = Form(default=0.0),
+    scene_json: str = Form(default="{}"),
+) -> dict[str, object]:
+    import json
+
+    sb = _supabase()
+    result = sb.table("moments").insert({
+        "trip_id": trip_id,
+        "user_id": user_id,
+        "photo_url": photo_url,
+        "scene_json": json.loads(scene_json),
+        "chosen_track_id": chosen_track_id or None,
+        "chosen_track_name": chosen_track_name or None,
+        "chosen_track_artist": chosen_track_artist or None,
+        "chosen_track_reason": chosen_track_reason or None,
+        "chosen_track_apple_url": chosen_track_apple_url or None,
+        "chosen_track_preview_url": chosen_track_preview_url or None,
+        "latitude": latitude or None,
+        "longitude": longitude or None,
+    }).execute()
+    return {"moment": result.data[0] if result.data else {}}

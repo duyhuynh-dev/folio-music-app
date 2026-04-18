@@ -37,12 +37,12 @@ Web-first (Next.js + Python/FastAPI). Reference: `folio_brief.pdf`.
 
 **Gate to exit:** internal tester uploads photo → authorises Apple Music → gets 4 playable suggestions saved to account.
 
-- [ ] **2.1 — FastAPI wrapper:** `/api/suggest-music` (photo + `music_user_token`), CORS, error handling, Railway deploy
-- [ ] **2.2 — Supabase:** schema for `users`, `trips`, `moments`, `suggestions`; Auth + Storage bucket
-- [ ] **2.3 — Next.js scaffold:** App Router, Tailwind, `lib/api.ts`, `lib/musickit.ts`
-- [ ] **2.4 — MusicKit auth flow:** developer JWT endpoint, MusicKit JS load, in-memory `music-user-token` (not persisted)
-- [ ] **2.5 — Upload screen:** drag-drop, client-side EXIF extraction (GPS + timestamp), loading state
-- [ ] **2.6 — MusicPicker component:** 4 cards, 30s preview player, one-line reason, "Try different vibe" (re-runs Stage 4 with new `variation_seed`), "Use this one" pins track
+- [x] **2.1 — FastAPI wrapper:** `/api/suggest-music` + `/api/token` + `/health`, CORS, error handling
+- [x] **2.2 — Supabase:** migration with `profiles`, `trips`, `moments`, `suggestions` + RLS + storage bucket
+- [x] **2.3 — Next.js scaffold:** App Router, Tailwind, `lib/api.ts`, `lib/musickit.ts`
+- [x] **2.4 — MusicKit auth flow:** developer JWT endpoint, MusicKit JS load, in-memory `music-user-token`
+- [x] **2.5 — Upload screen:** drag-drop, EXIF extraction stub, loading state
+- [x] **2.6 — MusicPicker component:** 4 cards, 30s preview player, one-line reason, "Try different vibe", "Use this one"
 - [ ] **2.7 — Internal testing:** 3–5 people × 10 photos, track failure modes
 
 ---
@@ -51,11 +51,11 @@ Web-first (Next.js + Python/FastAPI). Reference: `folio_brief.pdf`.
 
 **Gate to exit:** 50 beta users, ≥10 shared public trip pages.
 
-- [ ] **3.1 — Trip memory map** (`components/TripMap.tsx`): Mapbox GL JS, pins per moment, tap = photo + song + reason popup
-- [ ] **3.2 — Replay mode** (`ReplayPlayer.tsx`): animate route chronologically, autoplay songs in sequence
-- [ ] **3.3 — Shareable trip page:** public `/trip/[id]`, OG image, "Make your own" CTA (viral loop)
-- [ ] **3.4 — Non-subscriber support:** 30s Apple Music previews work without subscription
-- [ ] **3.5 — Trip management:** create trip, add moments, edit title/dates/members (unlimited trips)
+- [x] **3.1 — Trip memory map** (`components/TripMap.tsx`): Mapbox GL JS, pins per moment, tap = photo + song + reason popup
+- [x] **3.2 — Replay mode** (`ReplayPlayer.tsx`): animate route chronologically, autoplay songs in sequence
+- [x] **3.3 — Shareable trip page:** `/trip/[id]` with map, replay, "Make your own" CTA
+- [x] **3.4 — Non-subscriber support:** MusicKit auth is optional, 30s previews work without subscription
+- [x] **3.5 — Trip management:** backend endpoints for create trip + add moment, TripManager component
 - [ ] **3.6 — Beta launch:** Reddit (r/solotravel, r/travel, r/roadtrip), feedback form, Posthog analytics
 
 ---

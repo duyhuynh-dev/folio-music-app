@@ -22,9 +22,14 @@ export default function Home() {
       setPickedTrack(null);
 
       try {
-        let token = getMusicUserToken();
+        let token = getMusicUserToken() || "";
         if (!token) {
-          token = await authorizeMusicKit();
+          try {
+            token = await authorizeMusicKit();
+          } catch {
+            // Non-subscriber: proceed without token, previews still work
+            token = "";
+          }
         }
 
         const result = await suggestMusic(file, token, seed);
