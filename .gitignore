@@ -1,0 +1,12 @@
+.env
+*.p8
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+node_modules/
+.next/
+eval_photos/
+eval_output/
+.DS_Store
