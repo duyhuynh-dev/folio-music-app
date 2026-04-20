@@ -4,7 +4,6 @@ import { useCallback, useState } from "react";
 import PhotoUpload from "@/components/PhotoUpload";
 import MusicPicker from "@/components/MusicPicker";
 import { suggestMusic, type TrackSuggestion } from "@/lib/api";
-import { authorizeMusicKit, getMusicUserToken } from "@/lib/musickit";
 
 export default function Home() {
   const [suggestions, setSuggestions] = useState<TrackSuggestion[]>([]);
@@ -14,34 +13,21 @@ export default function Home() {
   const [variationSeed, setVariationSeed] = useState(0);
   const [pickedTrack, setPickedTrack] = useState<TrackSuggestion | null>(null);
 
-  const runPipeline = useCallback(
-    async (file: File, seed: number) => {
-      setLoading(true);
-      setError(null);
-      setSuggestions([]);
-      setPickedTrack(null);
+  const runPipeline = useCallback(async (file: File, seed: number) => {
+    setLoading(true);
+    setError(null);
+    setSuggestions([]);
+    setPickedTrack(null);
 
-      try {
-        let token = getMusicUserToken() || "";
-        if (!token) {
-          try {
-            token = await authorizeMusicKit();
-          } catch {
-            // Non-subscriber: proceed without token, previews still work
-            token = "";
-          }
-        }
-
-        const result = await suggestMusic(file, token, seed);
-        setSuggestions(result.suggestions);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Something went wrong");
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
+    try {
+      const result = await suggestMusic(file, seed);
+      setSuggestions(result.suggestions);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const handlePhotoSelected = useCallback(
     (file: File) => {

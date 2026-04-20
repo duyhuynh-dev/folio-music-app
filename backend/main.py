@@ -9,7 +9,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from supabase import create_client
 
-from services.apple_music import AppleMusicClient
 from services.feedback_loop import get_few_shot_examples, format_examples_for_translate, format_examples_for_rank
 from services.video_export import generate_trip_video
 from pipeline.fetch import fetch_candidates
@@ -32,16 +31,6 @@ def _supabase():
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
-
-
-@app.get("/api/token")
-def developer_token() -> dict[str, str]:
-    try:
-        client = AppleMusicClient()
-        token = client._build_developer_token()
-        return {"token": token}
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/api/suggest-music")

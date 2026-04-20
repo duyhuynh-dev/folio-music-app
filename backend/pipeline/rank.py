@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import os
 
-from anthropic import Anthropic
+from google import genai
+from google.genai import types
 from pydantic import BaseModel
 
 from .fetch import TrackCandidate
@@ -21,15 +22,6 @@ class RankedTrack(BaseModel):
     reason: str
 
 
-def _extract_text_content(response: object) -> str:
-    content = getattr(response, "content", []) or []
-    text_parts: list[str] = []
-    for block in content:
-        if getattr(block, "type", "") == "text":
-            text_parts.append(getattr(block, "text", ""))
-    return "\n".join(text_parts).strip()
-
-
 def rank_and_explain(
     scene: Scene,
     candidates: list[TrackCandidate],
@@ -39,9 +31,8 @@ def rank_and_explain(
     if not candidates:
         return []
 
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+    api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        # Fallback for local development if key is missing.
         return [
             RankedTrack(
                 id=t.id,
@@ -57,7 +48,7 @@ def rank_and_explain(
             for t in candidates[:4]
         ]
 
-    client = Anthropic(api_key=api_key)
+    client = genai.Client(api_key=api_key)
     scene_json = scene.model_dump_json(indent=2)
     candidates_json = json.dumps([c.model_dump() for c in candidates], indent=2)
 
@@ -84,14 +75,19 @@ candidates: {candidates_json}
 {user_taste_context}
 """.strip()
 
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=800,
-        temperature=0.6,
-        messages=[{"role": "user", "content": prompt}],
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0.6,
+            max_output_tokens=800,
+        ),
     )
 
-    raw = _extract_text_content(response)
+    raw = response.text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+
     ranked_payload = json.loads(raw)
 
     candidate_by_id = {c.id: c for c in candidates}

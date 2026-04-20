@@ -1,4 +1,4 @@
-"""Stage 1 — Scene extraction via Claude Vision."""
+"""Stage 1 — Scene extraction via Gemini Vision."""
 
 from __future__ import annotations
 
@@ -6,7 +6,8 @@ import base64
 import json
 import os
 
-from anthropic import Anthropic
+from google import genai
+from google.genai import types
 from pydantic import BaseModel, Field
 
 
@@ -23,24 +24,7 @@ class Scene(BaseModel):
     season_feel: str
 
 
-def _extract_text_content(response: object) -> str:
-    content = getattr(response, "content", []) or []
-    text_parts: list[str] = []
-    for block in content:
-        if getattr(block, "type", "") == "text":
-            text_parts.append(getattr(block, "text", ""))
-    return "\n".join(text_parts).strip()
-
-
-def extract_scene(image_bytes: bytes) -> Scene:
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("Missing ANTHROPIC_API_KEY in environment.")
-
-    client = Anthropic(api_key=api_key)
-    base64_image = base64.b64encode(image_bytes).decode("utf-8")
-
-    prompt = """
+SCENE_PROMPT = """
 Analyse this travel photo and return ONLY valid JSON:
 {
   "setting": "coastal cliff / mountain / city street / etc",
@@ -57,28 +41,34 @@ Analyse this travel photo and return ONLY valid JSON:
 Do not include any markdown fences or extra keys.
 """.strip()
 
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=700,
-        temperature=0.2,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "image/jpeg",
-                            "data": base64_image,
-                        },
-                    },
-                ],
-            }
+
+def extract_scene(image_bytes: bytes) -> Scene:
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("Missing GEMINI_API_KEY in environment.")
+
+    client = genai.Client(api_key=api_key)
+    b64 = base64.b64encode(image_bytes).decode("utf-8")
+
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=[
+            types.Content(
+                parts=[
+                    types.Part.from_text(text=SCENE_PROMPT),
+                    types.Part.from_bytes(data=base64.b64decode(b64), mime_type="image/jpeg"),
+                ]
+            )
         ],
+        config=types.GenerateContentConfig(
+            temperature=0.2,
+            max_output_tokens=700,
+        ),
     )
 
-    raw = _extract_text_content(response)
+    raw = response.text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+
     parsed = json.loads(raw)
     return Scene.model_validate(parsed)

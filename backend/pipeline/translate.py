@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import os
 
-from anthropic import Anthropic
+from google import genai
+from google.genai import types
 from pydantic import BaseModel, Field
 
 from .scene import Scene
@@ -19,23 +20,13 @@ class MusicParams(BaseModel):
     tempo: str
 
 
-def _extract_text_content(response: object) -> str:
-    content = getattr(response, "content", []) or []
-    text_parts: list[str] = []
-    for block in content:
-        if getattr(block, "type", "") == "text":
-            text_parts.append(getattr(block, "text", ""))
-    return "\n".join(text_parts).strip()
-
-
 def translate_to_music_params(scene: Scene, user_taste_context: str = "") -> MusicParams:
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+    api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise RuntimeError("Missing ANTHROPIC_API_KEY in environment.")
+        raise RuntimeError("Missing GEMINI_API_KEY in environment.")
 
-    client = Anthropic(api_key=api_key)
+    client = genai.Client(api_key=api_key)
     scene_json = scene.model_dump_json(indent=2)
-
     taste_block = f"\n\n{user_taste_context}" if user_taste_context else ""
 
     prompt = f"""
@@ -59,13 +50,18 @@ Scene:
 {scene_json}{taste_block}
 """.strip()
 
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=700,
-        temperature=0.4,
-        messages=[{"role": "user", "content": prompt}],
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0.4,
+            max_output_tokens=700,
+        ),
     )
 
-    raw = _extract_text_content(response)
+    raw = response.text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+
     parsed = json.loads(raw)
     return MusicParams.model_validate(parsed)

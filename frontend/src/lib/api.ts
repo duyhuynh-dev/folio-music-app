@@ -14,21 +14,12 @@ export interface SuggestMusicResponse {
   suggestions: TrackSuggestion[];
 }
 
-export async function fetchDeveloperToken(): Promise<string> {
-  const res = await fetch(`${API_BASE}/api/token`);
-  if (!res.ok) throw new Error("Failed to fetch developer token");
-  const data = await res.json();
-  return data.token;
-}
-
 export async function suggestMusic(
   photo: File,
-  musicUserToken: string,
   variationSeed: number = 0
 ): Promise<SuggestMusicResponse> {
   const form = new FormData();
   form.append("photo", photo);
-  form.append("music_user_token", musicUserToken);
   form.append("variation_seed", String(variationSeed));
 
   const res = await fetch(`${API_BASE}/api/suggest-music`, {
