@@ -28,13 +28,16 @@ def _extract_text_content(response: object) -> str:
     return "\n".join(text_parts).strip()
 
 
-def translate_to_music_params(scene: Scene) -> MusicParams:
+def translate_to_music_params(scene: Scene, user_taste_context: str = "") -> MusicParams:
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         raise RuntimeError("Missing ANTHROPIC_API_KEY in environment.")
 
     client = Anthropic(api_key=api_key)
     scene_json = scene.model_dump_json(indent=2)
+
+    taste_block = f"\n\n{user_taste_context}" if user_taste_context else ""
+
     prompt = f"""
 You are translating a travel-scene descriptor into music-discovery parameters.
 Return ONLY valid JSON with this schema:
@@ -53,7 +56,7 @@ Constraints:
 - No markdown fences.
 
 Scene:
-{scene_json}
+{scene_json}{taste_block}
 """.strip()
 
     response = client.messages.create(

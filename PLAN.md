@@ -72,23 +72,14 @@ Web-first (Next.js + Python/FastAPI). Reference: `folio_brief.pdf`.
 
 ---
 
-## Phase 5 — Weeks 17+: Print, Personalisation, B2B
+## Phase 5 — Weeks 17+: Personalisation + Polish
 
 No fixed deadline — pursue based on Phase 4 traction.
 
-- [ ] **5.1 — Printed Memory Book:** Gelato API, auto-layout A5 booklet (map, playlist QR, photos, members, dates), $18–28 one-time
-- [ ] **5.2 — Feedback loop:** dataset of `{scene_json → chosen_track}` — proprietary asset. Use to few-shot Stage 2/4 prompts
-- [ ] **5.3 — Apple Music + Last.fm personalisation:** pull listening history (with consent), bias seed_artists toward user taste
-- [ ] **5.4 — B2B Brand Trips:** sponsored curated playlists ("Iceland by Icelandair"), pitch deck + outreach
-- [ ] **5.5 — Acquisition prep:** data room (metrics, dataset size, cohort retention) for Spotify/Apple/Airbnb/Polarsteps
+- [x] **5.1 — Feedback loop:** few-shot examples from taste signals injected into Stage 2 + 4 prompts
+- [x] **5.2 — Apple Music + Last.fm personalisation:** Last.fm top artists + taste signals combined into /api/taste/{user_id}/personalisation
 
 ---
-
-## Monetisation (current)
-
-- Printed Memory Book ($18–28 one-time, zero inventory via Gelato)
-- B2B Brand Trips (Phase 5+)
-- All features are free to all users (no premium subscription tier)
 
 ## Key Risks (from brief)
 

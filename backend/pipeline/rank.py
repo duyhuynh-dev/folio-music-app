@@ -34,6 +34,7 @@ def rank_and_explain(
     scene: Scene,
     candidates: list[TrackCandidate],
     variation_seed: int = 0,
+    user_taste_context: str = "",
 ) -> list[RankedTrack]:
     if not candidates:
         return []
@@ -80,6 +81,7 @@ Rules:
 variation_seed: {variation_seed}
 scene: {scene_json}
 candidates: {candidates_json}
+{user_taste_context}
 """.strip()
 
     response = client.messages.create(

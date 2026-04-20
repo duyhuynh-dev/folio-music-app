@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from supabase import create_client
 
 from services.apple_music import AppleMusicClient
+from services.feedback_loop import get_few_shot_examples, format_examples_for_translate, format_examples_for_rank
 from services.video_export import generate_trip_video
 from pipeline.fetch import fetch_candidates
 from pipeline.rank import rank_and_explain
@@ -48,13 +49,22 @@ async def suggest_music(
     photo: UploadFile = File(...),
     music_user_token: str = Form(default=""),
     variation_seed: int = Form(default=0),
+    user_id: str = Form(default=""),
 ) -> dict[str, object]:
     try:
         image_bytes = await photo.read()
         scene = extract_scene(image_bytes)
-        params = translate_to_music_params(scene)
+
+        translate_ctx = ""
+        rank_ctx = ""
+        if user_id:
+            examples = get_few_shot_examples(user_id, limit=5)
+            translate_ctx = format_examples_for_translate(examples)
+            rank_ctx = format_examples_for_rank(examples)
+
+        params = translate_to_music_params(scene, user_taste_context=translate_ctx)
         candidates = await fetch_candidates(params, music_user_token=music_user_token or None)
-        ranked = rank_and_explain(scene, candidates, variation_seed=variation_seed)
+        ranked = rank_and_explain(scene, candidates, variation_seed=variation_seed, user_taste_context=rank_ctx)
         return {"scene": scene.model_dump(), "suggestions": [t.model_dump() for t in ranked]}
     except Exception as exc:  # pragma: no cover - keeps API return shape stable
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -239,4 +249,47 @@ def get_taste_preferences(user_id: str) -> dict[str, object]:
     return {
         "preferred_artists": [a for a, _ in preferred[:20]],
         "avoided_artists": [a for a, _ in avoided[:20]],
+    }
+
+
+@app.get("/api/taste/{user_id}/personalisation")
+async def get_personalisation_context(
+    user_id: str,
+    lastfm_username: str = "",
+) -> dict[str, object]:
+    from services.lastfm import LastfmClient
+
+    sb = _supabase()
+    signals = (
+        sb.table("taste_signals")
+        .select("track_artist, action")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(200)
+        .execute()
+    )
+
+    artist_scores: dict[str, int] = {}
+    for s in signals.data or []:
+        artist = s.get("track_artist", "")
+        if not artist:
+            continue
+        delta = 1 if s["action"] == "accept" else -1
+        artist_scores[artist] = artist_scores.get(artist, 0) + delta
+
+    preferred = [a for a, sc in artist_scores.items() if sc > 0]
+    avoided = [a for a, sc in artist_scores.items() if sc < 0]
+
+    lastfm_top: list[str] = []
+    if lastfm_username:
+        client = LastfmClient()
+        lastfm_top = await client.get_user_top_artists(lastfm_username, limit=15)
+
+    combined_preferred = list(dict.fromkeys(preferred + lastfm_top))[:25]
+
+    return {
+        "preferred_artists": combined_preferred,
+        "avoided_artists": avoided[:20],
+        "lastfm_top_artists": lastfm_top,
+        "taste_signal_count": len(signals.data or []),
     }

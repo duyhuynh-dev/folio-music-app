@@ -46,3 +46,26 @@ class LastfmClient:
                 )
             )
         return output
+
+    async def get_user_top_artists(
+        self, username: str, limit: int = 20, period: str = "12month"
+    ) -> list[str]:
+        if not self.api_key:
+            return []
+
+        params = {
+            "method": "user.gettopartists",
+            "user": username,
+            "api_key": self.api_key,
+            "format": "json",
+            "limit": limit,
+            "period": period,
+        }
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.get(self.BASE_URL, params=params)
+            if response.status_code != 200:
+                return []
+
+        payload = response.json()
+        artists = payload.get("topartists", {}).get("artist", [])
+        return [a.get("name", "") for a in artists if a.get("name")]
