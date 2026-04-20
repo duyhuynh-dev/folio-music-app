@@ -64,9 +64,9 @@ Web-first (Next.js + Python/FastAPI). Reference: `folio_brief.pdf`.
 
 **Gate to exit:** video export works, annual rewind page live, taste signals logging.
 
-- [ ] **4.1 — Video export:** server-side ffmpeg on Railway — map animation + photos + synced audio
-- [ ] **4.2 — Annual Rewind:** December feature stitching year's trips into one map + playlist
-- [ ] **4.3 — Taste learning:** log accept/reject per suggestion, feed Stage 4 ranking as personalisation signal
+- [x] **4.1 — Video export:** server-side ffmpeg — photo segments + audio, concat, /api/trips/{id}/export-video
+- [x] **4.2 — Annual Rewind:** /api/rewind/{user_id}/{year} + /rewind/[year] frontend page
+- [x] **4.3 — Taste learning:** taste_signals table, /api/taste POST + GET preferences endpoint
 
 > **Mobile (React Native + Expo):** deferred until web version is fully working and proven.
 
