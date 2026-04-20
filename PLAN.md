@@ -60,14 +60,15 @@ Web-first (Next.js + Python/FastAPI). Reference: `folio_brief.pdf`.
 
 ---
 
-## Phase 4 — Weeks 11–16: Mobile + Rewind
+## Phase 4 — Weeks 11–16: Video Export, Rewind, Taste Learning
 
-**Gate to exit:** iOS app in TestFlight, annual rewind live.
+**Gate to exit:** video export works, annual rewind page live, taste signals logging.
 
 - [ ] **4.1 — Video export:** server-side ffmpeg on Railway — map animation + photos + synced audio
 - [ ] **4.2 — Annual Rewind:** December feature stitching year's trips into one map + playlist
 - [ ] **4.3 — Taste learning:** log accept/reject per suggestion, feed Stage 4 ranking as personalisation signal
-- [ ] **4.4 — React Native + Expo app:** reuse backend, native photo picker, low-accuracy background GPS, TestFlight submission
+
+> **Mobile (React Native + Expo):** deferred until web version is fully working and proven.
 
 ---
 

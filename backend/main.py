@@ -6,9 +6,11 @@ import os
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from supabase import create_client
 
 from services.apple_music import AppleMusicClient
+from services.video_export import generate_trip_video
 from pipeline.fetch import fetch_candidates
 from pipeline.rank import rank_and_explain
 from pipeline.scene import extract_scene
@@ -119,3 +121,122 @@ def add_moment(
         "longitude": longitude or None,
     }).execute()
     return {"moment": result.data[0] if result.data else {}}
+
+
+@app.post("/api/trips/{trip_id}/export-video")
+async def export_video(trip_id: str) -> FileResponse:
+    sb = _supabase()
+    moments = (
+        sb.table("moments")
+        .select("photo_url, chosen_track_preview_url")
+        .eq("trip_id", trip_id)
+        .order("taken_at")
+        .execute()
+    )
+    if not moments.data:
+        raise HTTPException(status_code=404, detail="No moments found for this trip")
+
+    output_path = await generate_trip_video(moments.data)
+    return FileResponse(
+        path=str(output_path),
+        media_type="video/mp4",
+        filename=f"folio_trip_{trip_id[:8]}.mp4",
+    )
+
+
+@app.get("/api/rewind/{user_id}/{year}")
+def annual_rewind(user_id: str, year: int) -> dict[str, object]:
+    sb = _supabase()
+    trips = (
+        sb.table("trips")
+        .select("*")
+        .eq("user_id", user_id)
+        .gte("created_at", f"{year}-01-01")
+        .lt("created_at", f"{year + 1}-01-01")
+        .order("created_at")
+        .execute()
+    )
+    if not trips.data:
+        raise HTTPException(status_code=404, detail="No trips found for this year")
+
+    trip_ids = [t["id"] for t in trips.data]
+    all_moments = (
+        sb.table("moments")
+        .select("*")
+        .in_("trip_id", trip_ids)
+        .order("taken_at")
+        .execute()
+    )
+
+    return {
+        "year": year,
+        "total_trips": len(trips.data),
+        "total_moments": len(all_moments.data or []),
+        "trips": trips.data,
+        "moments": all_moments.data or [],
+    }
+
+
+@app.post("/api/taste")
+def log_taste_signal(
+    user_id: str = Form(...),
+    track_id: str = Form(...),
+    track_name: str = Form(...),
+    track_artist: str = Form(...),
+    action: str = Form(...),
+    moment_id: str = Form(default=""),
+    scene_json: str = Form(default="{}"),
+) -> dict[str, str]:
+    import json
+
+    if action not in ("accept", "reject", "try_different"):
+        raise HTTPException(status_code=400, detail="action must be accept, reject, or try_different")
+
+    sb = _supabase()
+    sb.table("taste_signals").insert({
+        "user_id": user_id,
+        "moment_id": moment_id or None,
+        "track_id": track_id,
+        "track_name": track_name,
+        "track_artist": track_artist,
+        "action": action,
+        "scene_json": json.loads(scene_json),
+    }).execute()
+
+    return {"status": "recorded"}
+
+
+@app.get("/api/taste/{user_id}/preferences")
+def get_taste_preferences(user_id: str) -> dict[str, object]:
+    sb = _supabase()
+    signals = (
+        sb.table("taste_signals")
+        .select("track_artist, action")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(200)
+        .execute()
+    )
+
+    artist_scores: dict[str, int] = {}
+    for s in signals.data or []:
+        artist = s.get("track_artist", "")
+        if not artist:
+            continue
+        delta = 1 if s["action"] == "accept" else -1
+        artist_scores[artist] = artist_scores.get(artist, 0) + delta
+
+    preferred = sorted(
+        [(a, sc) for a, sc in artist_scores.items() if sc > 0],
+        key=lambda x: x[1],
+        reverse=True,
+    )
+    avoided = sorted(
+        [(a, sc) for a, sc in artist_scores.items() if sc < 0],
+        key=lambda x: x[1],
+    )
+
+    return {
+        "preferred_artists": [a for a, _ in preferred[:20]],
+        "avoided_artists": [a for a, _ in avoided[:20]],
+    }
