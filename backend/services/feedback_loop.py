@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timezone
 
 from supabase import create_client
+
+_LOCAL_TASTE_SIGNALS: list[dict] = []
 
 
 def _supabase():
@@ -20,23 +23,68 @@ def _supabase():
     return create_client(url, key)
 
 
-def get_few_shot_examples(user_id: str, limit: int = 5) -> list[dict]:
-    sb = _supabase()
-    if not sb:
-        return []
+def record_taste_signal(
+    user_id: str,
+    track_id: str,
+    track_name: str,
+    track_artist: str,
+    action: str,
+    scene_json: dict,
+    moment_id: str | None = None,
+) -> None:
+    payload = {
+        "user_id": user_id,
+        "moment_id": moment_id or None,
+        "track_id": track_id,
+        "track_name": track_name,
+        "track_artist": track_artist,
+        "action": action,
+        "scene_json": scene_json,
+    }
 
-    signals = (
-        sb.table("taste_signals")
-        .select("scene_json, track_name, track_artist, action")
-        .eq("user_id", user_id)
-        .eq("action", "accept")
-        .order("created_at", desc=True)
-        .limit(limit)
-        .execute()
-    )
+    sb = _supabase()
+    if sb:
+        sb.table("taste_signals").insert(payload).execute()
+        return
+
+    _LOCAL_TASTE_SIGNALS.append({
+        **payload,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+
+def get_taste_signals(user_id: str, limit: int = 200, action: str | None = None) -> list[dict]:
+    sb = _supabase()
+    if sb:
+        query = (
+            sb.table("taste_signals")
+            .select("scene_json, track_name, track_artist, action, created_at")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(limit)
+        )
+        if action:
+            query = query.eq("action", action)
+        result = query.execute()
+        return result.data or []
+
+    filtered: list[dict] = []
+    for signal in reversed(_LOCAL_TASTE_SIGNALS):
+        if signal.get("user_id") != user_id:
+            continue
+        if action and signal.get("action") != action:
+            continue
+        filtered.append(signal)
+        if len(filtered) >= limit:
+            break
+    return filtered
+
+
+def get_few_shot_examples(user_id: str, limit: int = 5) -> list[dict]:
+    signals = get_taste_signals(user_id=user_id, limit=limit, action="accept")
 
     examples = []
-    for s in signals.data or []:
+    for s in signals:
         scene = s.get("scene_json")
         if not scene or not s.get("track_name"):
             continue

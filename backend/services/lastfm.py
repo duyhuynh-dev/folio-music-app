@@ -21,7 +21,7 @@ class LastfmClient:
 
     async def get_top_tracks_by_tag(self, tag: str, limit: int = 5) -> list[LastfmTrack]:
         if not self.api_key:
-            raise RuntimeError("Missing LASTFM_API_KEY in environment.")
+            return []
 
         params = {
             "method": "tag.gettoptracks",
@@ -30,22 +30,25 @@ class LastfmClient:
             "format": "json",
             "limit": limit,
         }
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            response = await client.get(self.BASE_URL, params=params)
-            response.raise_for_status()
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                response = await client.get(self.BASE_URL, params=params)
+                response.raise_for_status()
 
-        payload = response.json()
-        tracks = payload.get("tracks", {}).get("track", [])
-        output: list[LastfmTrack] = []
-        for item in tracks:
-            artist = item.get("artist", {})
-            output.append(
-                LastfmTrack(
-                    name=item.get("name", ""),
-                    artist=artist.get("name", "") if isinstance(artist, dict) else "",
+            payload = response.json()
+            tracks = payload.get("tracks", {}).get("track", [])
+            output: list[LastfmTrack] = []
+            for item in tracks:
+                artist = item.get("artist", {})
+                output.append(
+                    LastfmTrack(
+                        name=item.get("name", ""),
+                        artist=artist.get("name", "") if isinstance(artist, dict) else "",
+                    )
                 )
-            )
-        return output
+            return output
+        except Exception:
+            return []
 
     async def get_user_top_artists(
         self, username: str, limit: int = 20, period: str = "12month"

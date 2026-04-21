@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import TripMap, { type Moment } from "@/components/TripMap";
 import ReplayPlayer from "@/components/ReplayPlayer";
@@ -37,12 +38,9 @@ export default function TripPage() {
       .finally(() => setLoading(false));
   }, [params.id]);
 
-  const handleMomentChange = useCallback(
-    (index: number) => {
-      // Could fly-to the moment on the map here
-    },
-    []
-  );
+  const handleMomentChange = useCallback(() => {
+    // Could fly-to the moment on the map here
+  }, []);
 
   if (loading) {
     return (
@@ -100,12 +98,12 @@ export default function TripPage() {
         />
 
         <div className="text-center">
-          <a
+          <Link
             href="/"
             className="inline-block px-6 py-2.5 rounded-full bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
           >
             Make your own trip soundtrack
-          </a>
+          </Link>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Moment } from "./TripMap";
 
 interface ReplayPlayerProps {
@@ -17,46 +17,43 @@ export default function ReplayPlayer({
   const audioRef = useRef<HTMLAudioElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const stop = useCallback(() => {
+  const stop = () => {
     setPlaying(false);
     setCurrentIndex(-1);
     audioRef.current?.pause();
     if (timerRef.current) clearTimeout(timerRef.current);
-  }, []);
+  };
 
-  const playMoment = useCallback(
-    (index: number) => {
-      if (index >= moments.length) {
-        stop();
-        return;
-      }
+  function playMoment(index: number): void {
+    if (index >= moments.length) {
+      stop();
+      return;
+    }
 
-      setCurrentIndex(index);
-      onMomentChange?.(index);
+    setCurrentIndex(index);
+    onMomentChange?.(index);
 
-      const moment = moments[index];
-      const audio = audioRef.current;
+    const moment = moments[index];
+    const audio = audioRef.current;
 
-      if (audio && moment.trackPreviewUrl) {
-        audio.src = moment.trackPreviewUrl;
-        audio.play().catch(() => {});
-      }
+    if (audio && moment.trackPreviewUrl) {
+      audio.src = moment.trackPreviewUrl;
+      audio.play().catch(() => {});
+    }
 
-      // Auto-advance after 30s (preview length) or 10s if no preview
-      const duration = moment.trackPreviewUrl ? 30000 : 10000;
-      timerRef.current = setTimeout(() => playMoment(index + 1), duration);
-    },
-    [moments, onMomentChange, stop]
-  );
+    // Auto-advance after 30s (preview length) or 10s if no preview
+    const duration = moment.trackPreviewUrl ? 30000 : 10000;
+    timerRef.current = setTimeout(() => playMoment(index + 1), duration);
+  }
 
-  const toggleReplay = useCallback(() => {
+  const toggleReplay = () => {
     if (playing) {
       stop();
     } else {
       setPlaying(true);
       playMoment(0);
     }
-  }, [playing, playMoment, stop]);
+  };
 
   useEffect(() => {
     return () => {

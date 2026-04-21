@@ -3,7 +3,23 @@
 import { useCallback, useState } from "react";
 import PhotoUpload from "@/components/PhotoUpload";
 import MusicPicker from "@/components/MusicPicker";
-import { suggestMusic, type TrackSuggestion } from "@/lib/api";
+import { logTasteSignal, suggestMusic, type TrackSuggestion } from "@/lib/api";
+
+const USER_ID_STORAGE_KEY = "folio_user_id";
+
+function getOrCreateUserId(): string {
+  if (typeof window === "undefined") return "";
+
+  const existing = window.localStorage.getItem(USER_ID_STORAGE_KEY);
+  if (existing) return existing;
+
+  const generated =
+    typeof window.crypto !== "undefined" && "randomUUID" in window.crypto
+      ? window.crypto.randomUUID()
+      : `folio-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
+  window.localStorage.setItem(USER_ID_STORAGE_KEY, generated);
+  return generated;
+}
 
 export default function Home() {
   const [suggestions, setSuggestions] = useState<TrackSuggestion[]>([]);
@@ -12,22 +28,33 @@ export default function Home() {
   const [currentFile, setCurrentFile] = useState<File | null>(null);
   const [variationSeed, setVariationSeed] = useState(0);
   const [pickedTrack, setPickedTrack] = useState<TrackSuggestion | null>(null);
+  const [scene, setScene] = useState<Record<string, unknown> | null>(null);
+  const [userId, setUserId] = useState(() => getOrCreateUserId());
 
-  const runPipeline = useCallback(async (file: File, seed: number) => {
-    setLoading(true);
-    setError(null);
-    setSuggestions([]);
-    setPickedTrack(null);
+  const runPipeline = useCallback(
+    async (file: File, seed: number) => {
+      setLoading(true);
+      setError(null);
+      setSuggestions([]);
+      setPickedTrack(null);
 
-    try {
-      const result = await suggestMusic(file, seed);
-      setSuggestions(result.suggestions);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      const effectiveUserId = userId || getOrCreateUserId();
+      if (!userId && effectiveUserId) {
+        setUserId(effectiveUserId);
+      }
+
+      try {
+        const result = await suggestMusic(file, seed, effectiveUserId);
+        setScene(result.scene || null);
+        setSuggestions(result.suggestions);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Something went wrong");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [userId]
+  );
 
   const handlePhotoSelected = useCallback(
     (file: File) => {
@@ -40,14 +67,38 @@ export default function Home() {
 
   const handleTryDifferentVibe = useCallback(() => {
     if (!currentFile) return;
+
+    const effectiveUserId = userId || getOrCreateUserId();
+    if (effectiveUserId) {
+      void Promise.allSettled(
+        suggestions.map((track) =>
+          logTasteSignal({
+            userId: effectiveUserId,
+            track,
+            action: "try_different",
+            scene,
+          })
+        )
+      );
+    }
+
     const newSeed = variationSeed + 1;
     setVariationSeed(newSeed);
     runPipeline(currentFile, newSeed);
-  }, [currentFile, variationSeed, runPipeline]);
+  }, [currentFile, variationSeed, runPipeline, scene, suggestions, userId]);
 
   const handlePickTrack = useCallback((track: TrackSuggestion) => {
     setPickedTrack(track);
-  }, []);
+    const effectiveUserId = userId || getOrCreateUserId();
+    if (!effectiveUserId) return;
+
+    void logTasteSignal({
+      userId: effectiveUserId,
+      track,
+      action: "accept",
+      scene,
+    }).catch(() => false);
+  }, [scene, userId]);
 
   return (
     <div className="flex flex-col flex-1 items-center bg-zinc-50 dark:bg-black font-sans">

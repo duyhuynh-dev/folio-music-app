@@ -3,18 +3,29 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from supabase import create_client
 
-from services.feedback_loop import get_few_shot_examples, format_examples_for_translate, format_examples_for_rank
+from services.feedback_loop import (
+    format_examples_for_rank,
+    format_examples_for_translate,
+    get_few_shot_examples,
+    get_taste_signals,
+    record_taste_signal,
+)
 from services.video_export import generate_trip_video
 from pipeline.fetch import fetch_candidates
 from pipeline.rank import rank_and_explain
 from pipeline.scene import extract_scene
 from pipeline.translate import translate_to_music_params
+
+# Load backend/.env when running via uvicorn (which does not call run.py).
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
 app = FastAPI(title="Folio API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -191,34 +202,30 @@ def log_taste_signal(
     if action not in ("accept", "reject", "try_different"):
         raise HTTPException(status_code=400, detail="action must be accept, reject, or try_different")
 
-    sb = _supabase()
-    sb.table("taste_signals").insert({
-        "user_id": user_id,
-        "moment_id": moment_id or None,
-        "track_id": track_id,
-        "track_name": track_name,
-        "track_artist": track_artist,
-        "action": action,
-        "scene_json": json.loads(scene_json),
-    }).execute()
+    try:
+        parsed_scene = json.loads(scene_json)
+    except json.JSONDecodeError:
+        parsed_scene = {}
+
+    record_taste_signal(
+        user_id=user_id,
+        moment_id=moment_id or None,
+        track_id=track_id,
+        track_name=track_name,
+        track_artist=track_artist,
+        action=action,
+        scene_json=parsed_scene if isinstance(parsed_scene, dict) else {},
+    )
 
     return {"status": "recorded"}
 
 
 @app.get("/api/taste/{user_id}/preferences")
 def get_taste_preferences(user_id: str) -> dict[str, object]:
-    sb = _supabase()
-    signals = (
-        sb.table("taste_signals")
-        .select("track_artist, action")
-        .eq("user_id", user_id)
-        .order("created_at", desc=True)
-        .limit(200)
-        .execute()
-    )
+    signals = get_taste_signals(user_id=user_id, limit=200)
 
     artist_scores: dict[str, int] = {}
-    for s in signals.data or []:
+    for s in signals:
         artist = s.get("track_artist", "")
         if not artist:
             continue
@@ -248,18 +255,10 @@ async def get_personalisation_context(
 ) -> dict[str, object]:
     from services.lastfm import LastfmClient
 
-    sb = _supabase()
-    signals = (
-        sb.table("taste_signals")
-        .select("track_artist, action")
-        .eq("user_id", user_id)
-        .order("created_at", desc=True)
-        .limit(200)
-        .execute()
-    )
+    signals = get_taste_signals(user_id=user_id, limit=200)
 
     artist_scores: dict[str, int] = {}
-    for s in signals.data or []:
+    for s in signals:
         artist = s.get("track_artist", "")
         if not artist:
             continue
@@ -280,5 +279,5 @@ async def get_personalisation_context(
         "preferred_artists": combined_preferred,
         "avoided_artists": avoided[:20],
         "lastfm_top_artists": lastfm_top,
-        "taste_signal_count": len(signals.data or []),
+        "taste_signal_count": len(signals),
     }

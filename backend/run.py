@@ -28,6 +28,7 @@ async def run(photo_path: Path) -> None:
 
     params = translate_to_music_params(scene)
     print("\n== Music params ==")
+    
     print(params.model_dump_json(indent=2))
 
     candidates = await fetch_candidates(params)

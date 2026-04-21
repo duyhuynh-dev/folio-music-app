@@ -16,11 +16,15 @@ export interface SuggestMusicResponse {
 
 export async function suggestMusic(
   photo: File,
-  variationSeed: number = 0
+  variationSeed: number = 0,
+  userId: string = ""
 ): Promise<SuggestMusicResponse> {
   const form = new FormData();
   form.append("photo", photo);
   form.append("variation_seed", String(variationSeed));
+  if (userId) {
+    form.append("user_id", userId);
+  }
 
   const res = await fetch(`${API_BASE}/api/suggest-music`, {
     method: "POST",
@@ -33,4 +37,37 @@ export async function suggestMusic(
   }
 
   return res.json();
+}
+
+export type TasteAction = "accept" | "reject" | "try_different";
+
+interface LogTasteSignalParams {
+  userId: string;
+  track: TrackSuggestion;
+  action: TasteAction;
+  scene?: Record<string, unknown> | null;
+}
+
+export async function logTasteSignal({
+  userId,
+  track,
+  action,
+  scene,
+}: LogTasteSignalParams): Promise<boolean> {
+  if (!userId) return false;
+
+  const form = new FormData();
+  form.append("user_id", userId);
+  form.append("track_id", track.id);
+  form.append("track_name", track.name);
+  form.append("track_artist", track.artist);
+  form.append("action", action);
+  form.append("scene_json", JSON.stringify(scene || {}));
+
+  const res = await fetch(`${API_BASE}/api/taste`, {
+    method: "POST",
+    body: form,
+  });
+
+  return res.ok;
 }
